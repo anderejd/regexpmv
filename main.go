@@ -30,25 +30,37 @@ func makeWalkFunc(fh fileHandler) filepath.WalkFunc {
 	}
 }
 
+func getMatchingPaths(root string, re *regexp.Regexp) ([]string, error) {
+	paths := []string{}
+	walker := makeWalkFunc(func(path string) error {
+		if !re.MatchString(path) {
+			return nil
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	return paths, filepath.Walk(root, walker)
+}
+
 func main() {
 	if len(os.Args) < 4 {
 		log.Fatalln(`Syntax error. Usage: regexpmv ./ "text" "new $1"`)
 	}
 	root := os.Args[1]
-	r, err := regexp.Compile(os.Args[2])
+	re, err := regexp.Compile(os.Args[2])
 	if err != nil {
 		log.Fatalln(err)
 	}
 	newText := os.Args[3]
-	walker := makeWalkFunc(func(path string) error {
-		if !r.MatchString(path) {
-			return nil
-		}
-		newPath := r.ReplaceAllString(path, newText)
-		return os.Rename(path, newPath)
-	})
-	err = filepath.Walk(root, walker)
+	paths, err := getMatchingPaths(root, re)
 	if err != nil {
 		log.Fatalln(err)
+	}
+	for _, path := range paths {
+		newPath := re.ReplaceAllString(path, newText)
+		err := os.Rename(path, newPath)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 }
